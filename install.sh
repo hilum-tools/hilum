@@ -1,21 +1,13 @@
 #!/bin/sh
-# Hilum installer — downloads the release build for this platform, verifies it, and puts it on PATH.
+# Hilum Tools installer — downloads the release build for this platform, verifies it, and puts `hilum` on PATH.
 #
 #   curl -fsSL https://hilum.tools/install.sh | sh
 #
-# POSIX sh on purpose: this runs under dash, ash and busybox before anything of ours exists, so it
-# uses no bashisms. It needs curl or wget, tar, and a sha256 tool — all present on a stock macOS or
-# Linux. Windows has a sibling PowerShell installer.
+# POSIX sh on purpose: this runs under dash, ash and busybox before anything of ours exists, so it uses no bashisms. It needs curl or wget, tar, and a sha256 tool — all present on a stock macOS or Linux. Windows has a sibling PowerShell installer.
 #
-# Options (also settable as environment variables):
-#   --version <v>     HILUM_VERSION       install this exact version instead of the latest release
-#   --to <dir>        HILUM_INSTALL_DIR   install here instead of ~/.local/bin
-#   --force                               overwrite an existing binary without asking
-#   --help
+# Options (also settable as environment variables): --version <v>     HILUM_VERSION       install this exact version instead of the latest release --to <dir>        HILUM_INSTALL_DIR   install here instead of ~/.local/bin --force                               overwrite an existing binary without asking --help
 #
-# It never edits a shell profile. A script piped into a shell cannot ask, and silently rewriting a
-# profile is not a thing to do without asking — so when the install directory is not on PATH it prints
-# the line to add and leaves the decision where it belongs.
+# It never edits a shell profile. A script piped into a shell cannot ask, and silently rewriting a profile is not a thing to do without asking — so when the install directory is not on PATH it prints the line to add and leaves the decision where it belongs.
 #
 # Re-running it is how you upgrade: the install is idempotent and replaces whatever is there.
 
@@ -30,18 +22,14 @@ VERSION="${HILUM_VERSION:-}"
 INSTALL_DIR="${HILUM_INSTALL_DIR:-$HOME/.local/bin}"
 FORCE=0
 
-# The release signing public key. Not a secret — distributing it IS its purpose. It is published in
-# three places (here, as minisign.pub in the distribution repository, and on the site) precisely so a
-# substitution in any one of them is visible against the others. Override only to test against a
-# different key.
+# The release signing public key. Not a secret — distributing it IS its purpose. It is published in three places (here, as minisign.pub in the distribution repository, and on the site) precisely so a substitution in any one of them is visible against the others. Override only to test against a different key.
 HILUM_MINISIGN_PUBKEY="${HILUM_MINISIGN_PUBKEY:-RWSnhqZs5W7WgG5w9362G/R4b9pvtmC1VZATfKeBZDxBdVt1j7dj22fP}"
 
 say() { printf '%s\n' "$*"; }
 err() { printf 'install.sh: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || err "$1 is required but was not found on PATH"; }
 
-# Print the header comment block and stop at the first line that is not a comment. A hardcoded line
-# range would silently start printing the wrong thing the next time the header is edited.
+# Print the header comment block and stop at the first line that is not a comment. A hardcoded line range would silently start printing the wrong thing the next time the header is edited.
 usage() {
 	awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
 	exit 0
@@ -58,9 +46,7 @@ while [ $# -gt 0 ]; do
 done
 
 # --- platform ----------------------------------------------------------------------------------
-# Resolve the target triple of THIS host. On macOS the check is `sysctl hw.optional.arm64` rather than
-# `uname -m`, because under a Rosetta-translated shell `uname -m` reports x86_64 on an Apple Silicon
-# machine and would hand the user the slow binary.
+# Resolve the target triple of THIS host. On macOS the check is `sysctl hw.optional.arm64` rather than `uname -m`, because under a Rosetta-translated shell `uname -m` reports x86_64 on an Apple Silicon machine and would hand the user the slow binary.
 detect_target() {
 	os="$(uname -s)"
 	case "$os" in
@@ -86,10 +72,30 @@ detect_target() {
 
 TARGET="$(detect_target)"
 
-# The Linux builds link against glibc. A musl-based distribution (Alpine and friends) needs a build we
-# do not ship yet — say so here rather than let the user discover it from a loader error.
+# The Linux builds link against glibc. A musl-based distribution (Alpine and friends) needs a build we do not ship yet — say so here rather than let the user discover it from a loader error.
 if [ "$(uname -s)" = "Linux" ] && [ ! -e /lib/ld-linux-x86-64.so.2 ] && [ ! -e /lib/ld-linux-aarch64.so.1 ] && ! ldd --version 2>&1 | grep -qi glibc; then
 	err "this build needs glibc and this system does not appear to have it (Alpine or another musl distribution). Please open an issue asking for a musl build."
+fi
+
+# The floor is 2.35 — the glibc of the oldest image the release builds on — and unlike the 2.38 this replaced, it is now OURS. Until 2026-08-07 the binary linked a prebuilt ONNX Runtime that called `__isoc23_strtoll` and dragged its own 2.38 along; the runtime is fetched at first use now, so what is left is only what we compile against. glibc still cannot be installed or upgraded by an installer — it is the C library every process on the system is already linked against, moved only by moving the distribution — so this remains a diagnosis delivered before the download rather than `version GLIBC_2.35 not found` from the loader after it.
+if [ "$(uname -s)" = "Linux" ]; then
+	# `getconf` is the direct question and exists on any glibc system; `ldd --version` prints the version as its last field and covers the rest. Both are read leniently: an unparsable answer skips the check rather than blocking an install that might well have worked.
+	glibc_ver="$(getconf GNU_LIBC_VERSION 2>/dev/null | awk '{print $NF}')"
+	[ -n "$glibc_ver" ] || glibc_ver="$(ldd --version 2>/dev/null | head -1 | awk '{print $NF}')"
+	case "$glibc_ver" in
+		[0-9]*.[0-9]*)
+			glibc_major="${glibc_ver%%.*}"
+			glibc_minor="${glibc_ver#*.}"
+			glibc_minor="${glibc_minor%%.*}"
+			if [ "$glibc_major" -lt 2 ] || { [ "$glibc_major" -eq 2 ] && [ "$glibc_minor" -lt 35 ]; }; then
+				err "this build needs glibc 2.35 or newer and this system has ${glibc_ver}.
+  Ubuntu 22.04, Debian 12 and RHEL 9 are all above that line and are supported; older releases
+  are not. glibc cannot be installed or upgraded on its own — it moves when the distribution
+  moves — so the ways forward are to upgrade, to run it in a container built on something newer,
+  or to ask for a lower floor at https://github.com/hilum-tools/hilum/issues."
+			fi
+			;;
+	esac
 fi
 
 # --- fetch helpers -----------------------------------------------------------------------------
@@ -113,8 +119,7 @@ else
 fi
 
 # --- version -----------------------------------------------------------------------------------
-# The latest-release endpoint excludes prereleases, so a release candidate is never served here by
-# accident. Someone who wants one names it with --version.
+# The latest-release endpoint excludes prereleases, so a release candidate is never served here by accident. Someone who wants one names it with --version.
 if [ -z "$VERSION" ]; then
 	VERSION="$(fetch "${API}/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)"
 	[ -n "$VERSION" ] || err "could not determine the latest version. Pass --version <v>, or check that ${REPO} has a published release."
@@ -132,9 +137,7 @@ say "hilum ${VERSION} for ${TARGET}"
 fetch_to "${DL}/v${VERSION}/${ARCHIVE}" "${TMP}/${ARCHIVE}" \
 	|| err "download failed. Is ${VERSION} a published release for ${TARGET}?"
 
-# Verification is not optional. A checksum proves the download arrived intact; the signature, when the
-# release carries one, proves it is the file we built. A release without a sums file is a broken
-# release, so treat a missing one as a failure rather than a reason to skip the check.
+# Verification is not optional. A checksum proves the download arrived intact; the signature, when the release carries one, proves it is the file we built. A release without a sums file is a broken release, so treat a missing one as a failure rather than a reason to skip the check.
 fetch_to "${DL}/v${VERSION}/${SUMS}" "${TMP}/${SUMS}" || err "no checksum file in release v${VERSION} — refusing to install unverified"
 EXPECTED="$(grep " ${ARCHIVE}\$" "${TMP}/${SUMS}" | cut -d' ' -f1 | head -n 1)"
 [ -n "$EXPECTED" ] || err "${ARCHIVE} is not listed in ${SUMS} — refusing to install unverified"
@@ -142,10 +145,7 @@ ACTUAL="$(sha256 "${TMP}/${ARCHIVE}")"
 [ "$EXPECTED" = "$ACTUAL" ] || err "checksum mismatch for ${ARCHIVE}: expected ${EXPECTED}, got ${ACTUAL}"
 say "checksum ok"
 
-# The signature proves the checksum file is the one we published — the checksum alone only proves the
-# download was not corrupted, and both sit in the same place, so whoever can replace one can replace
-# both. A FAILED verification always aborts. A verification that cannot be attempted does not, because
-# refusing to install over a missing optional tool is a worse default than saying what was skipped.
+# The signature proves the checksum file is the one we published — the checksum alone only proves the download was not corrupted, and both sit in the same place, so whoever can replace one can replace both. A FAILED verification always aborts. A verification that cannot be attempted does not, because refusing to install over a missing optional tool is a worse default than saying what was skipped.
 if fetch_to "${DL}/v${VERSION}/${SUMS}.minisig" "${TMP}/${SUMS}.minisig" 2>/dev/null; then
 	if command -v minisign >/dev/null 2>&1; then
 		if minisign -V -P "${HILUM_MINISIGN_PUBKEY}" -m "${TMP}/${SUMS}" >/dev/null 2>&1; then
@@ -168,14 +168,11 @@ if [ -e "$DEST" ] && [ "$FORCE" -eq 0 ] && [ ! -w "$DEST" ]; then
 	err "${DEST} exists and is not writable. Re-run with --force, or choose another directory with --to."
 fi
 chmod +x "${TMP}/${BIN}"
-# Replace via a move within the same directory so the swap is atomic: a process holding the old inode
-# keeps running, and no one ever observes a half-written binary.
+# Replace via a move within the same directory so the swap is atomic: a process holding the old inode keeps running, and no one ever observes a half-written binary.
 mv -f "${TMP}/${BIN}" "$DEST"
 say "installed ${DEST}"
 
-# Record how this binary arrived. `hilum daemon update` reads it to pick the right upgrade path —
-# replacing a file the package manager owns, or asking the package manager to do it. Written by the
-# installer because the installer is the only party that knows the truth.
+# Record how this binary arrived. `hilum daemon update` reads it to pick the right upgrade path — replacing a file the package manager owns, or asking the package manager to do it. Written by the installer because the installer is the only party that knows the truth.
 MARKER_DIR="${HOME}/.hilum/local"
 mkdir -p "$MARKER_DIR"
 printf '{"channel":"tarball","version":"%s","target":"%s","installed_to":"%s"}\n' \
