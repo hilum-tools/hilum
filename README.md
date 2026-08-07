@@ -1,10 +1,12 @@
-# Hilum
+# Hilum Tools
 
 **Structural truth for AI coding agents — not guesses.**
 
-Your coding agent starts every session by re-reading half your repository to work out where things are. Hilum is the layer that already knows: it answers structure, references, history and retrieval over MCP, so the agent works from what the code actually is instead of guessing — with far fewer tokens.
+Your coding agent starts every session by re-reading half your repository to work out where things are. Hilum Tools is the layer that already knows: it answers structure, references, history and retrieval over MCP, so the agent works from what the code actually is instead of guessing — with far fewer tokens.
 
 One binary. One entry in your MCP client. Every tool.
+
+Hilum Tools is the product. `hilum` is the single binary it ships, and the command you type.
 
 ## Install
 
