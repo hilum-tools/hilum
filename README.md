@@ -35,14 +35,14 @@ shasum -a 256 -c hilum-<version>-SHA256SUMS
 | System | Architectures |
 |---|---|
 | macOS | Apple Silicon, Intel |
-| Linux | x86_64, arm64 — glibc 2.38 or newer |
+| Linux | x86_64, arm64 — glibc 2.35 or newer |
 | Windows | x86_64, arm64 |
 
-Linux builds link against glibc 2.38 or newer, which rules out Ubuntu 22.04, Debian 12 and RHEL 9, and they will not run on Alpine or another musl-based distribution. The floor comes from the prebuilt inference runtime the binary links, not from a choice. If it rules you out, open an issue and say so.
+Linux builds need glibc 2.35 or newer, which covers Ubuntu 22.04, Debian 12 and RHEL 9. They will not run on Alpine or another musl-based distribution. The floor is the glibc of the oldest image the release builds on. If it rules you out, open an issue and say so.
 
 ## First run
 
-The binary is self-contained, but the embedding model is not inside it — it is downloaded to a local cache the first time it is needed, so the first run wants a network connection.
+The first semantic query downloads two things: the embedding model, and the inference runtime that executes it. Both are cached locally and fetched once. Neither ships inside the binary, which is deliberate — a runtime compiled in has to be compiled against something, and that choice is what decides which Linux distributions the binary will start on. If you never run a semantic query, neither is ever downloaded.
 
 ## What this repository is
 
