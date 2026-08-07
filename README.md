@@ -35,10 +35,10 @@ shasum -a 256 -c hilum-<version>-SHA256SUMS
 | System | Architectures |
 |---|---|
 | macOS | Apple Silicon, Intel |
-| Linux | x86_64, arm64 — glibc 2.35 or newer |
+| Linux | x86_64, arm64 — glibc 2.38 or newer |
 | Windows | x86_64, arm64 |
 
-Linux builds link against glibc and will not run on Alpine or another musl-based distribution. If you need one, open an issue and say so.
+Linux builds link against glibc 2.38 or newer, which rules out Ubuntu 22.04, Debian 12 and RHEL 9, and they will not run on Alpine or another musl-based distribution. The floor comes from the prebuilt inference runtime the binary links, not from a choice. If it rules you out, open an issue and say so.
 
 ## First run
 
