@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Hilum installer for Windows — downloads the release build for this machine, verifies it, and puts it
+Hilum Tools installer for Windows — downloads the release build for this machine, verifies it, and puts it
 somewhere you can run it from.
 
 .DESCRIPTION
