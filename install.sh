@@ -30,6 +30,12 @@ VERSION="${HILUM_VERSION:-}"
 INSTALL_DIR="${HILUM_INSTALL_DIR:-$HOME/.local/bin}"
 FORCE=0
 
+# The release signing public key. Not a secret — distributing it IS its purpose. It is published in
+# three places (here, as minisign.pub in the distribution repository, and on the site) precisely so a
+# substitution in any one of them is visible against the others. Override only to test against a
+# different key.
+HILUM_MINISIGN_PUBKEY="${HILUM_MINISIGN_PUBKEY:-RWSnhqZs5W7WgG5w9362G/R4b9pvtmC1VZATfKeBZDxBdVt1j7dj22fP}"
+
 say() { printf '%s\n' "$*"; }
 err() { printf 'install.sh: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || err "$1 is required but was not found on PATH"; }
@@ -136,16 +142,19 @@ ACTUAL="$(sha256 "${TMP}/${ARCHIVE}")"
 [ "$EXPECTED" = "$ACTUAL" ] || err "checksum mismatch for ${ARCHIVE}: expected ${EXPECTED}, got ${ACTUAL}"
 say "checksum ok"
 
-# The signature is verified when both the signature and minisign are present. It is not required: the
-# checksum already covers corruption, and refusing to install because an optional hardening tool is
-# absent would be a worse default than saying so.
-if command -v minisign >/dev/null 2>&1 && fetch_to "${DL}/v${VERSION}/${SUMS}.minisig" "${TMP}/${SUMS}.minisig" 2>/dev/null; then
-	if [ -n "${HILUM_MINISIGN_PUBKEY:-}" ]; then
+# The signature proves the checksum file is the one we published — the checksum alone only proves the
+# download was not corrupted, and both sit in the same place, so whoever can replace one can replace
+# both. A FAILED verification always aborts. A verification that cannot be attempted does not, because
+# refusing to install over a missing optional tool is a worse default than saying what was skipped.
+if fetch_to "${DL}/v${VERSION}/${SUMS}.minisig" "${TMP}/${SUMS}.minisig" 2>/dev/null; then
+	if command -v minisign >/dev/null 2>&1; then
 		if minisign -V -P "${HILUM_MINISIGN_PUBKEY}" -m "${TMP}/${SUMS}" >/dev/null 2>&1; then
 			say "signature ok"
 		else
 			err "signature verification FAILED for ${SUMS} — do not install this file"
 		fi
+	else
+		say "signature present but not checked — install minisign to verify it"
 	fi
 fi
 
