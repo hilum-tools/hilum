@@ -172,7 +172,7 @@ chmod +x "${TMP}/${BIN}"
 mv -f "${TMP}/${BIN}" "$DEST"
 say "installed ${DEST}"
 
-# Record how this binary arrived. `hilum daemon update` reads it to pick the right upgrade path — replacing a file the package manager owns, or asking the package manager to do it. Written by the installer because the installer is the only party that knows the truth.
+# Record how this binary arrived. `hilum update` reads it to pick the right upgrade path — replacing a file the package manager owns, or asking the package manager to do it. Written by the installer because the installer is the only party that knows the truth.
 MARKER_DIR="${HOME}/.hilum/local"
 mkdir -p "$MARKER_DIR"
 printf '{"channel":"tarball","version":"%s","target":"%s","installed_to":"%s"}\n' \
